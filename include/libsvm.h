@@ -2,6 +2,7 @@
 #define _LIBSVM_H
 
 #define LIBSVM_VERSION 318
+#define LIBSVM__DENSE_REP
 
 #ifdef __cplusplus
 extern "C" {
@@ -9,7 +10,7 @@ extern "C" {
 
 extern int libsvm_version;
 
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
 struct svm_node
 {
     int dim;
@@ -38,28 +39,29 @@ struct svm_problem
 };
 #endif
 
-enum { C_SVC, NU_SVC, ONE_CLASS, EPSILON_SVR, NU_SVR };	/* svm_type */
-enum { LINEAR, POLY, RBF, SIGMOID, PRECOMPUTED }; /* kernel_type */
+enum { C_SVC = 100, NU_SVC = 101, ONE_CLASS = 102, EPSILON_SVR = 103, NU_SVR = 104 };   /* svm_type */
+enum { LINEAR = 0, POLY = 1, RBF = 2, SIGMOID = 3, PRECOMPUTED = 4 };               /* kernel_type */
 
 struct svm_parameter
 {
-    int svm_type = C_SVC;
+    int svm_type    = C_SVC;
     int kernel_type = RBF;
-    int degree = 3;	/* for poly */
-    double gamma = 1;	/* for poly/rbf/sigmoid */
-    double coef0 = 0;	/* for poly/sigmoid */
+    int degree      = 3;                /* for poly */
+    double gamma    = 1;                /* for poly/rbf/sigmoid */
+    double coef0    = 0;                /* for poly/sigmoid */
 
     /* these are for training only */
-    double cache_size = 100; /* in MB */
-    double eps = 1e-5;	/* stopping criteria */
-    double C = 1;	/* for C_SVC, EPSILON_SVR and NU_SVR */
-    int nr_weight = 0;		/* for C_SVC */
-    int *weight_label = nullptr;	/* for C_SVC */
-    double* weight = nullptr;		/* for C_SVC */
-    double nu = 0.5;	/* for NU_SVC, ONE_CLASS, and NU_SVR */
-    double p = 0.1;	/* for EPSILON_SVR */
-    int shrinking = 0;	/* use the shrinking heuristics */
-    int probability = 1; /* do probability estimates */
+    double cache_size = 100;            /* in MB */
+    double eps        = FLT_EPSILON;    /* stopping criteria */
+    int max_iter      = 1000;           /* stopping criteria */
+    double C          = 1;              /* for C_SVC, EPSILON_SVR and NU_SVR */
+    int nr_weight     = 0;              /* for C_SVC */
+    int *weight_label = nullptr;        /* for C_SVC */
+    double* weight    = nullptr;        /* for C_SVC */
+    double nu         = 0.5;            /* for NU_SVC, ONE_CLASS, and NU_SVR */
+    double p          = 0.1;            /* for EPSILON_SVR */
+    int shrinking     = 0;              /* use the shrinking heuristics */
+    int probability   = 1;              /* do probability estimates */
 };
 
 //
@@ -70,7 +72,7 @@ struct svm_model
     struct svm_parameter param;	/* parameter */
     int nr_class;		/* number of classes, = 2 in regression/one class svm */
     int l;			/* total #SV */
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
     struct svm_node *SV;		/* SVs (SV[l]) */
 #else
     struct svm_node **SV;		/* SVs (SV[l]) */

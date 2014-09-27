@@ -1,3 +1,9 @@
+#ifdef _MSC_VER
+// Disable warnings for do {} while(0) and deprecated functions
+#  pragma warning(push)
+#  pragma warning(disable: 4127 4996)
+#endif // _MSC_VER
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,7 +13,7 @@
 #include <stdarg.h>
 #include <limits.h>
 #include <locale.h>
-#include "svm.h"
+#include "libsvm.h"
 
 int libsvm_version = LIBSVM_VERSION;
 typedef float Qfloat;
@@ -202,7 +208,7 @@ public:
 
 class Kernel: public QMatrix {
 public:
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
     Kernel(int l, svm_node * x, const svm_parameter& param);
 #else
     Kernel(int l, svm_node * const * x, const svm_parameter& param);
@@ -223,7 +229,10 @@ protected:
     double (Kernel::*kernel_function)(int i, int j) const;
 
 private:
-#ifdef _DENSE_REP
+    Kernel(const Kernel&);
+    Kernel& operator= (const Kernel&);
+
+#ifdef LIBSVM__DENSE_REP
     svm_node *x;
 #else
     const svm_node **x;
@@ -237,7 +246,7 @@ private:
     const double coef0;
 
     static double dot(const svm_node *px, const svm_node *py);
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
     static double dot(const svm_node &px, const svm_node &py);
 #endif
 
@@ -259,7 +268,7 @@ private:
     }
     double kernel_precomputed(int i, int j) const
     {
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
         return (x+i)->values[(int)((x+j)->values[0])];
 #else
         return x[i][(int)(x[j][0].value)].value;
@@ -267,7 +276,7 @@ private:
     }
 };
 
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
 Kernel::Kernel(int l, svm_node * x_, const svm_parameter& param)
 #else
 Kernel::Kernel(int l, svm_node * const * x_, const svm_parameter& param)
@@ -312,7 +321,7 @@ Kernel::~Kernel()
     delete[] x_square;
 }
 
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
 double Kernel::dot(const svm_node *px, const svm_node *py)
 {
     double sum = 0;
@@ -368,7 +377,7 @@ double Kernel::k_function(const svm_node *x, const svm_node *y,
         case RBF:
         {
             double sum = 0;
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
             int dim = min(x->dim, y->dim), i;
             for (i = 0; i < dim; i++)
             {
@@ -421,7 +430,7 @@ double Kernel::k_function(const svm_node *x, const svm_node *y,
         case SIGMOID:
             return tanh(param.gamma*dot(x,y)+param.coef0);
         case PRECOMPUTED:  //x: test (validation), y: SV
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
             return x->values[(int)(y->values[0])];
 #else
             return x[(int)(y->value)].value;
@@ -463,8 +472,8 @@ public:
     };
 
     void Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
-           double *alpha_, double Cp, double Cn, double eps,
-           SolutionInfo* si, int shrinking);
+               double *alpha_, double Cp, double Cn, double eps, int max_iter,
+               SolutionInfo* si, int shrinking);
 protected:
     int active_size;
     schar *y;
@@ -561,8 +570,8 @@ void Solver::reconstruct_gradient()
 }
 
 void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
-           double *alpha_, double Cp, double Cn, double eps,
-           SolutionInfo* si, int shrinking)
+                   double *alpha_, double Cp, double Cn, double eps, int max_iter,
+                   SolutionInfo* si, int shrinking)
 {
     this->l = l;
     this->Q = &Q;
@@ -617,7 +626,7 @@ void Solver::Solve(int l, const QMatrix& Q, const double *p_, const schar *y_,
     // optimization step
 
     int iter = 0;
-    int max_iter = max(10000000, l>INT_MAX/100 ? INT_MAX : 100*l);
+    max_iter = max(max_iter, l > INT_MAX / 100 ? INT_MAX : 100 * l);
     int counter = min(l,1000)+1;
 
     while(iter < max_iter)
@@ -1070,11 +1079,11 @@ class Solver_NU: public Solver
 public:
     Solver_NU() {}
     void Solve(int l, const QMatrix& Q, const double *p, const schar *y,
-           double *alpha, double Cp, double Cn, double eps,
-           SolutionInfo* si, int shrinking)
+               double *alpha, double Cp, double Cn, double eps, int max_iter,
+               SolutionInfo* si, int shrinking)
     {
         this->si = si;
-        Solver::Solve(l,Q,p,y,alpha,Cp,Cn,eps,si,shrinking);
+        Solver::Solve(l,Q,p,y,alpha,Cp,Cn,eps,max_iter,si,shrinking);
     }
 private:
     SolutionInfo *si;
@@ -1514,8 +1523,8 @@ static void solve_c_svc(
     }
 
     Solver s;
-    s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
-        alpha, Cp, Cn, param->eps, si, param->shrinking);
+    s.Solve(l, SVC_Q(*prob, *param, y), minus_ones, y, alpha, Cp, Cn,
+            param->eps, param->max_iter, si, param->shrinking);
 
     double sum_alpha=0;
     for(i=0;i<l;i++)
@@ -1568,8 +1577,8 @@ static void solve_nu_svc(
         zeros[i] = 0;
 
     Solver_NU s;
-    s.Solve(l, SVC_Q(*prob,*param,y), zeros, y,
-        alpha, 1.0, 1.0, param->eps, si,  param->shrinking);
+    s.Solve(l, SVC_Q(*prob, *param, y), zeros, y, alpha, 1.0, 1.0,
+            param->eps, param->max_iter, si, param->shrinking);
     double r = si->r;
 
     info("C = %f\n",1/r);
@@ -1611,8 +1620,8 @@ static void solve_one_class(
     }
 
     Solver s;
-    s.Solve(l, ONE_CLASS_Q(*prob,*param), zeros, ones,
-        alpha, 1.0, 1.0, param->eps, si, param->shrinking);
+    s.Solve(l, ONE_CLASS_Q(*prob, *param), zeros, ones, alpha, 1.0, 1.0,
+            param->eps, param->max_iter, si, param->shrinking);
 
     delete[] zeros;
     delete[] ones;
@@ -1640,8 +1649,8 @@ static void solve_epsilon_svr(
     }
 
     Solver s;
-    s.Solve(2*l, SVR_Q(*prob,*param), linear_term, y,
-        alpha2, param->C, param->C, param->eps, si, param->shrinking);
+    s.Solve(2 * l, SVR_Q(*prob, *param), linear_term, y, alpha2, param->C, param->C,
+            param->eps, param->max_iter, si, param->shrinking);
 
     double sum_alpha = 0;
     for(i=0;i<l;i++)
@@ -1681,8 +1690,8 @@ static void solve_nu_svr(
     }
 
     Solver_NU s;
-    s.Solve(2*l, SVR_Q(*prob,*param), linear_term, y,
-        alpha2, C, C, param->eps, si, param->shrinking);
+    s.Solve(2 * l, SVR_Q(*prob, *param), linear_term, y, alpha2, C, C,
+            param->eps, param->max_iter, si, param->shrinking);
 
     info("epsilon = %f\n",-si->r);
 
@@ -1709,6 +1718,7 @@ static decision_function svm_train_one(
 {
     double *alpha = Malloc(double,prob->l);
     Solver::SolutionInfo si;
+    memset(&si, 0, sizeof(Solver::SolutionInfo));
     switch(param->svm_type)
     {
         case C_SVC:
@@ -1973,7 +1983,7 @@ static void svm_binary_svc_probability(
         struct svm_problem subprob;
 
         subprob.l = prob->l-(end-begin);
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
         subprob.x = Malloc(struct svm_node,subprob.l);
 #else
         subprob.x = Malloc(struct svm_node*,subprob.l);
@@ -2024,7 +2034,7 @@ static void svm_binary_svc_probability(
             struct svm_model *submodel = svm_train(&subprob,&subparam);
             for(j=begin;j<end;j++)
             {
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
                 svm_predict_values(submodel,(prob->x+perm[j]),&(dec_values[perm[j]]));
 #else
                 svm_predict_values(submodel,prob->x[perm[j]],&(dec_values[perm[j]]));
@@ -2190,7 +2200,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
         for(i=0;i<prob->l;i++)
             if(fabs(f.alpha[i]) > 0) ++nSV;
         model->l = nSV;
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
         model->SV = Malloc(svm_node,nSV);
 #else
         model->SV = Malloc(svm_node *,nSV);
@@ -2224,7 +2234,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
         if(nr_class == 1)
             info("WARNING: training data in only one class. See README for details.\n");
 
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
         svm_node *x = Malloc(svm_node,l);
 #else
         svm_node **x = Malloc(svm_node *,l);
@@ -2272,7 +2282,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
                 int si = start[i], sj = start[j];
                 int ci = count[i], cj = count[j];
                 sub_prob.l = ci+cj;
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
                 sub_prob.x = Malloc(svm_node,sub_prob.l);
 #else
                 sub_prob.x = Malloc(svm_node *,sub_prob.l);
@@ -2352,7 +2362,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
         info("Total nSV = %d\n",total_sv);
 
         model->l = total_sv;
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
         model->SV = Malloc(svm_node,total_sv);
 #else
         model->SV = Malloc(svm_node *,total_sv);
@@ -2503,7 +2513,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
         struct svm_problem subprob;
 
         subprob.l = l-(end-begin);
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
         subprob.x = Malloc(struct svm_node,subprob.l);
 #else
         subprob.x = Malloc(struct svm_node*,subprob.l);
@@ -2529,7 +2539,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
         {
             double *prob_estimates=Malloc(double,svm_get_nr_class(submodel));
             for(j=begin;j<end;j++)
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
                 target[perm[j]] = svm_predict_probability(submodel,(prob->x + perm[j]),prob_estimates);
 #else
                 target[perm[j]] = svm_predict_probability(submodel,prob->x[perm[j]],prob_estimates);
@@ -2538,7 +2548,7 @@ void svm_cross_validation(const svm_problem *prob, const svm_parameter *param, i
         }
         else
             for(j=begin;j<end;j++)
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
                 target[perm[j]] = svm_predict(submodel,prob->x+perm[j]);
 #else
                 target[perm[j]] = svm_predict(submodel,prob->x[perm[j]]);
@@ -2604,7 +2614,7 @@ double svm_predict_values(const svm_model *model, const svm_node *x, double* dec
         double sum = 0;
 
         for(i=0;i<model->l;i++)
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
             sum += sv_coef[i] * Kernel::k_function(x,model->SV+i,model->param);
 #else
             sum += sv_coef[i] * Kernel::k_function(x,model->SV[i],model->param);
@@ -2624,7 +2634,7 @@ double svm_predict_values(const svm_model *model, const svm_node *x, double* dec
 
         double *kvalue = Malloc(double,l);
         for(i=0;i<l;i++)
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
             kvalue[i] = Kernel::k_function(x,model->SV+i,model->param);
 #else
             kvalue[i] = Kernel::k_function(x,model->SV[i],model->param);
@@ -2809,7 +2819,7 @@ int svm_save_model(const char *model_file_name, const svm_model *model)
 
     fprintf(fp, "SV\n");
     const double * const *sv_coef = model->sv_coef;
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
     const svm_node *SV = model->SV;
 #else
     const svm_node * const *SV = model->SV;
@@ -2820,7 +2830,7 @@ int svm_save_model(const char *model_file_name, const svm_model *model)
         for(int j=0;j<nr_class-1;j++)
             fprintf(fp, "%.16g ",sv_coef[j][i]);
 
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
         const svm_node *p = (SV + i);
 
         if(param.kernel_type == PRECOMPUTED)
@@ -2884,7 +2894,7 @@ bool read_model_header(FILE *fp, svm_model* model)
 {
     svm_parameter& param = model->param;
     char cmd[81];
-    while(1)
+    for (;;)
     {
         FSCANF(fp,"%80s",cmd);
 
@@ -2986,7 +2996,6 @@ bool read_model_header(FILE *fp, svm_model* model)
     }
 
     return true;
-
 }
 
 svm_model *svm_load_model(const char *model_file_name)
@@ -3029,7 +3038,7 @@ svm_model *svm_load_model(const char *model_file_name)
     line = Malloc(char,max_line_len);
     char *p,*endptr,*idx,*val;
 
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
     int max_index = 1;
     // read the max dimension of all vectors
     while(readline(fp) != NULL)
@@ -3070,7 +3079,7 @@ svm_model *svm_load_model(const char *model_file_name)
     for(i=0;i<m;i++)
         model->sv_coef[i] = Malloc(double,l);
 
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
     int index;
     model->SV = Malloc(svm_node,l);
 
@@ -3090,7 +3099,7 @@ svm_model *svm_load_model(const char *model_file_name)
         }
 
         int *d = &(model->SV[i].dim);
-        while(1)
+        for (;;)
         {
             idx = strtok(NULL, ":");
             val = strtok(NULL, " \t");
@@ -3151,7 +3160,7 @@ svm_model *svm_load_model(const char *model_file_name)
 void svm_free_model_content(svm_model* model_ptr)
 {
     if(model_ptr->free_sv && model_ptr->l > 0 && model_ptr->SV != NULL)
-#ifdef _DENSE_REP
+#ifdef LIBSVM__DENSE_REP
     for (int i = 0; i < model_ptr->l; i++)
         free (model_ptr->SV[i].values);
 #else
@@ -3340,3 +3349,7 @@ void svm_set_print_string_function(void (*print_func)(const char *))
     else
         svm_print_string = print_func;
 }
+
+#ifdef _MSC_VER
+#  pragma warning(pop)
+#endif // _MSC_VER

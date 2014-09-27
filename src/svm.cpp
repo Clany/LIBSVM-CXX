@@ -1,4 +1,5 @@
 #include <iostream>
+#include <opencv2/ml/ml.hpp>
 #include "svm.h"
 
 using namespace std;
@@ -16,7 +17,7 @@ void SVM::train(const Mat& train_data, InputArray labels, const SVMParameter& _p
 
     vector<SVMNode> data_node(train_mat.rows);
     int ft_dim = train_mat.cols;
-    for (int i = 0; i < data_node.size(); ++i) {
+    for (int i = 0; i < train_mat.rows; ++i) {
         data_node[i].dim = ft_dim;
         data_node[i].values = train_mat.ptr<double>(i);
     }
@@ -36,21 +37,17 @@ void SVM::train(const Mat& train_data, InputArray labels, int svm_type, int kern
     train_data.convertTo(cv_train_mat, CV_32F);
     labels.getMat().convertTo(cv_label_mat, CV_32F);
 
-    CvSVMParams svm_params;
-    svm_params.svm_type = CvSVM::C_SVC;
-    svm_params.kernel_type = CvSVM::RBF;
+    cv::SVMParams svm_params;
+    svm_params.svm_type    = svm_type;
+    svm_params.kernel_type = kernel_type;
+    svm_params.term_crit   = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
 
-    CvSVM svm;
+    cv::SVM svm;
     svm.train_auto(cv_train_mat, cv_label_mat, Mat(), Mat(), svm_params, k_fold);
+    //svm.train(cv_train_mat, cv_label_mat, Mat(), Mat(), svm_params);
 
     svm_params = svm.get_params();
-    params.C = svm_params.C;
-    params.coef0 = svm_params.coef0;
-    params.degree = svm_params.degree;
-    params.gamma = svm_params.gamma;
-    params.nu = svm_params.nu;
-    params.p = svm_params.p;
-    params.eps = svm_params.term_crit.epsilon;
+    params     = svm_params;
 
     train(train_data, labels, params);
 }
