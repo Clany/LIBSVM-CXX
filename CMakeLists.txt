@@ -35,8 +35,9 @@ add_library(libsvm STATIC ${LIBSVM_LIST})
 
 set(TEST_LIST
   libsvm/libsvm.cpp
+  include/svm.h
   src/svm.cpp
-  src/main.cpp
+  src/test.cpp
 )
 add_executable(svm_test ${TEST_LIST})
 target_link_libraries(svm_test ${OpenCV_LIBS})
