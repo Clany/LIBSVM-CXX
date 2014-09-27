@@ -54,7 +54,8 @@ void SVM::train(const Mat& train_data, cv::InputArray labels, const SVMParameter
 
 
 void SVM::train(const Mat& train_data, cv::InputArray labels, int svm_type, int kernel_type, int k_fold,
-                cv::ParamGrid Cgrid, cv::ParamGrid gammaGrid)
+                SVMParamGrid Cgrid, SVMParamGrid gammaGrid, SVMParamGrid pGrid, SVMParamGrid nuGrid,
+                SVMParamGrid coeffGrid, SVMParamGrid degreeGrid)
 {
     Mat cv_train_mat, cv_label_mat;
     train_data.convertTo(cv_train_mat, CV_32F);
@@ -67,7 +68,7 @@ void SVM::train(const Mat& train_data, cv::InputArray labels, int svm_type, int 
 
     cv::SVM svm;
     svm.train_auto(cv_train_mat, cv_label_mat, Mat(), Mat(), svm_params, k_fold,
-                   Cgrid, gammaGrid);
+                   Cgrid, gammaGrid, pGrid, nuGrid, coeffGrid, degreeGrid);
     //svm.train(cv_train_mat, cv_label_mat, Mat(), Mat(), svm_params);
 
     svm_params = svm.get_params();

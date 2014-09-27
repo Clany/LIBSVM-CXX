@@ -38,6 +38,7 @@ using SVMProblem   = svm_problem;
 using SVMModel     = svm_model;
 
 struct SVMParameter : svm_parameter {
+#ifdef CV_VERSION
     SVMParameter& operator= (const cv::SVMParams& params) {
         svm_type    = params.svm_type;
         kernel_type = params.kernel_type;
@@ -52,6 +53,89 @@ struct SVMParameter : svm_parameter {
 
         return *this;
     }
+
+    operator cv::SVMParams() const {
+        cv::SVMParams params(svm_type, kernel_type, degree, gamma,
+                             coef0, C, nu, p, nullptr,
+                             cv::TermCriteria(CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, max_iter, eps));
+        return params;
+    }
+#endif
+};
+
+struct SVMParamGrid {
+    enum { C = 0, GAMMA = 1, P = 2, NU = 3, COEF = 4, DEGREE = 5 };
+
+    SVMParamGrid() = default;
+    SVMParamGrid(double min_val, double max_val, double log_step)
+        : min_val(min_val), max_val(max_val), step(log_step) {}
+
+    bool isValid() {
+        return min_val > 0 && max_val > min_val && step >= 1;
+    }
+
+    static auto getDefault(int grid_id) -> SVMParamGrid {
+        SVMParamGrid grid;
+
+        switch (grid_id) {
+        case C:
+            grid.min_val = 0.1;
+            grid.max_val = 500;
+            grid.step = 5; // total iterations = 5
+            break;
+        case GAMMA:
+            grid.min_val = 1e-5;
+            grid.max_val = 0.6;
+            grid.step = 15; // total iterations = 4
+            break;
+        case P:
+            grid.min_val = 0.01;
+            grid.max_val = 100;
+            grid.step = 7; // total iterations = 4
+            break;
+        case NU:
+            grid.min_val = 0.01;
+            grid.max_val = 0.2;
+            grid.step = 3; // total iterations = 3
+            break;
+        case COEF:
+            grid.min_val = 0.1;
+            grid.max_val = 300;
+            grid.step = 14; // total iterations = 3
+            break;
+        case DEGREE:
+            grid.min_val = 0.01;
+            grid.max_val = 4;
+            grid.step = 7; // total iterations = 3
+            break;
+        default:
+            return SVMParamGrid();  // Type is invalid
+            break;
+        }
+
+        return grid;
+    }
+
+#ifdef CV_VERSION
+    SVMParamGrid& operator= (const cv::ParamGrid& grid) {
+        min_val  = grid.min_val;
+        max_val  = grid.max_val;
+        step = grid.step;
+
+        return *this;
+    }
+
+    operator cv::ParamGrid() const {
+        cv::ParamGrid grid(min_val, max_val, step);
+        return grid;
+    }
+#endif
+
+    // The searching parameters is defined as: min, min*step, min*step^2, ... min*step^n
+    // where n should satisfy min*step^n < max
+    double min_val  = 0;
+    double max_val  = 0;
+    double step = 0;
 };
 
 struct SVMModelDeletor {
@@ -72,8 +156,12 @@ public:
     void train(const cv::Mat& train_data, cv::InputArray labels, const SVMParameter& params);
     void train(const cv::Mat& train_data, cv::InputArray labels,
                int svm_type = C_SVC, int kernel_type = RBF, int k_fold = 10,
-               cv::ParamGrid Cgrid = cv::SVM::get_default_grid(cv::SVM::C),
-               cv::ParamGrid gammaGrid = cv::SVM::get_default_grid(cv::SVM::GAMMA));
+               SVMParamGrid Cgrid      = SVMParamGrid::getDefault(SVMParamGrid::C),
+               SVMParamGrid gammaGrid  = SVMParamGrid::getDefault(SVMParamGrid::GAMMA),
+               SVMParamGrid pGrid      = SVMParamGrid::getDefault(SVMParamGrid::P),
+               SVMParamGrid nuGrid     = SVMParamGrid::getDefault(SVMParamGrid::NU),
+               SVMParamGrid coeffGrid  = SVMParamGrid::getDefault(SVMParamGrid::COEF),
+               SVMParamGrid degreeGrid = SVMParamGrid::getDefault(SVMParamGrid::DEGREE));
 
     double predict(cv::InputArray sample) const;
     double predict(const SVMNode& sample) const;
@@ -81,7 +169,7 @@ public:
     double predict(cv::InputArray sample, vector<double>& vals, bool return_prob_val = false) const;
     double predict(const SVMNode& sample, vector<double>& vals, bool return_prob_val = false) const;
 
-    auto getParams() const -> SVMParameter {
+    auto getParams() const -> const SVMParameter& {
         return params;
     }
 
