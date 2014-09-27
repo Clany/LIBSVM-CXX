@@ -19,6 +19,7 @@ if(USE_MY_PATH)
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/libsvm)
 
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -26,11 +27,14 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 
-set(LIBSVM_LIST src/libsvm.cpp)
+set(LIBSVM_LIST
+  libsvm/libsvm.h
+  libsvm/libsvm.cpp
+)
 add_library(libsvm STATIC ${LIBSVM_LIST})
 
 set(TEST_LIST
-  src/libsvm.cpp
+  libsvm/libsvm.cpp
   src/svm.cpp
   src/main.cpp
 )
