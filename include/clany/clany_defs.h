@@ -34,7 +34,13 @@
 #  define CLANY_EXPORTS
 #endif
 
+// Define some macros for debugging use
 #undef ASSERT
+#undef VERIFY
+#undef DBGVAR
+#undef DBGMSG
+#undef TRACE
+
 #ifdef _MSC_VER
 #  include <crtdbg.h>
 #  define ASSERT _ASSERTE
@@ -44,17 +50,37 @@
 #endif
 
 #ifndef NDEBUG
-#  define DBGVAR( os, var ) \
-     (os) << "Debug: " << __FILE__ << "(" << __LINE__ << ") "\
-          << #var << " = [" << (var) << "]" << std::endl
-#  define DBGMSG( os, msg ) \
-     (os) << "Debug: " << __FILE__ << "(" << __LINE__ << ") " \
-          << msg << std::endl
 #  define VERIFY ASSERT
+#  define DBGVAR(os, var) \
+     (os) << "Debug: " << __FILE__ << "(" << __LINE__ << "): " \
+          << #var << " = [" << (var) << "]" << std::endl
+#  define DBGMSG(os, msg) \
+     (os) << "Debug: " << __FILE__ << "(" << __LINE__ << "): " \
+          << msg << std::endl
+#  define _TRACE(format, ...) \
+     char buffer[256]; \
+     sprintf(buffer, (format), __VA_ARGS__); \
+     stringstream ss; \
+     ss << "Debug: " << __FILE__ << "(" << __LINE__ << "): " << buffer << endl
+#  ifdef _MSC_VER
+#    define NOMINMAX
+#    define _WINSOCKAPI_
+#    include <windows.h>
+#    define TRACE(format, ...) { \
+       _TRACE((format), __VA_ARGS__); \
+       OutputDebugString(ss.str().c_str()); \
+     }
+#  else
+#    define TRACE(format, ...) { \
+       _TRACE((format), __VA_ARGS__); \
+       cout << ss.str(); \
+     }
+#  endif
 #else
+#  define VERIFY(expression) (expression)
 #  define DBGVAR(os, var) ((void)0)
 #  define DBGMSG(os, msg) ((void)0)
-#  define VERIFY(expression) (expression)
+#  define TRACE(expression) ((void)0)
 #endif
 
 #if !(__cplusplus >= 201103L)
